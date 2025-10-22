@@ -7,7 +7,7 @@ import {
 import ImageUploadCard from "./components/ImageUploadCard";
 import ResultCard from "./components/ResultCard";
 import ControlPanel from "./components/ControlPanel";
-import { PanoramaIcon, ImageIcon } from "@phosphor-icons/react";
+import { PanoramaIcon, WarningIcon } from "@phosphor-icons/react";
 
 const ACCEPTED = ["image/jpeg", "image/png", "image/jpg", "image/webp"];
 
@@ -161,8 +161,13 @@ const App = () => {
         </Row>
 
         {error && (
-          <Row className="mb-3">
-            <Col xs={12} sm={11} lg={10}><Alert variant="danger">{error}</Alert></Col>
+          <Row className="mb-3 justify-content-center">
+            <Col xs={12} sm={11} lg={10}>
+              <Alert variant="danger" className="d-flex gap-2 align-items-center">
+                <WarningIcon className="pt-1" size={30} />
+                {error}
+              </Alert>
+            </Col>
           </Row>
         )}
 

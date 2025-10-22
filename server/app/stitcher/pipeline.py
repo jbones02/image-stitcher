@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 from .features import harrisFindCorners, findSift
-from .matching import matchDescriptors
+from .matching import findDescriptorMatches
 from .geometry import runRANSAC
 from .blending import stitchAndBlendImagesRgb
 
@@ -11,12 +11,12 @@ def _downscale(img, maxSize):
   if max(imgHeight, imgWidth) <= maxSize:
     return img, 1.0
   scaleFactor = maxSize / float(max(imgHeight, imgWidth))
-  return cv2.resize(img, None, fx=scaleFactor, fy=scaleFactor, interpolation=cv2.INTER_AREA)
+  return cv2.resize(img, None, fx=scaleFactor, fy=scaleFactor, interpolation=cv2.INTER_AREA), scaleFactor
 
 def _prepImages(img1Bgr, img2Bgr, maxSize,):
   # Convert both to RGB and make grayscale copies
-  img1Bgr = _downscale(img1Bgr, maxSize)
-  img2Bgr = _downscale(img2Bgr, maxSize)
+  img1Bgr, _ = _downscale(img1Bgr, maxSize)
+  img2Bgr, _ = _downscale(img2Bgr, maxSize)
 
   img1Gray = cv2.cvtColor(img1Bgr, cv2.COLOR_BGR2GRAY)
   img2Gray = cv2.cvtColor(img2Bgr, cv2.COLOR_BGR2GRAY)
@@ -48,6 +48,18 @@ def _siftAtCorners(img1Gray, img2Gray, cornerRows1, cornerCols1, cornerRows2, co
 
   return siftDescriptors1, siftDescriptors2, keypoints1XY, keypoints2XY
 
+def _matchDescriptors(siftDescriptors1, siftDescriptors2, cornerRows1, cornerRows2, maxDescriptorMatches):
+  if maxDescriptorMatches is None:
+    maxDescriptorMatches = min(100, len(cornerRows1), len(cornerRows2))
+  matches = findDescriptorMatches(siftDescriptors2, siftDescriptors1, maxDescriptorMatches)
+  return matches
+
+def _findHomography(descriptorMatches, keypoints1, keypoints2, iters, thresh):
+  homographyMatrix = runRANSAC(descriptorMatches, keypoints1, keypoints2, iters, thresh)
+  if homographyMatrix is None:
+    raise ValueError("Homography estimation failed.")
+  return homographyMatrix
+
 def _blendWarpedImages(img2Rgb, img1Rgb, homographyMatrix):
   blendedImageRgb = stitchAndBlendImagesRgb(img2Rgb, img1Rgb, homographyMatrix)
   outputImageBgr = cv2.cvtColor(blendedImageRgb, cv2.COLOR_RGB2BGR)
@@ -73,10 +85,6 @@ def stitchImages(
   sift1, sift2, keypoints1XY, keypoints2XY = _siftAtCorners(
     img1Gray, img2Gray, cornerRows1, cornerCols1, cornerRows2, cornerCols2, siftEnlarge
   )
-  descriptorMatches = matchDescriptors(sift1, sift2, maxDescriptorMatches)
-
-  homographyMatrix = runRANSAC(descriptorMatches, keypoints1XY, keypoints2XY, ransacIters, ransacThreshold)
-  if homographyMatrix is None:
-    raise ValueError("Homography estimation failed.")
-
+  descriptorMatches = _matchDescriptors(sift1, sift2, cornerRows1, cornerRows2, maxDescriptorMatches)
+  homographyMatrix = _findHomography(descriptorMatches, keypoints1XY, keypoints2XY, ransacIters, ransacThreshold)
   return _blendWarpedImages(img2Rgb, img1Rgb, homographyMatrix)

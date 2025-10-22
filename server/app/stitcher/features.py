@@ -19,15 +19,15 @@ def _buildGaussDerivativeKernels(sigma):
 
 # SIFT helpers
 def _prepSiftImg(img):
-  return img.astype(np.float32)
+  return img.astype(np.float64)
 
-def _calcMagTheta(img, sigmaEdge=1):
+def _calcGradients(img, sigmaEdge=1):
   Gx, Gy = _buildGaussDerivativeKernels(sigmaEdge)
   gradX = convolve2d(img, Gx, "same")
   gradY = convolve2d(img, Gy, "same")
   magnitude = np.sqrt(gradX ** 2 + gradY ** 2)
   theta = np.arctan2(gradY, gradX)
-  return magnitude, theta
+  return gradX, gradY, magnitude, theta
 
 def _buildSiftAngleAndCellGrids(numAngles, numBins):
   angleStep = 2 * np.pi / numAngles
@@ -100,14 +100,13 @@ def _calcKeypointSift(angleVol, centerX, centerY, keypointRadius, gridX, gridY, 
   return _sumAngles(angleVol, xMin, xMax, yMin, yMax, cellWeights, numAngles, numBins)
 
 def _normalizeDescriptors(siftDescriptors):
-  descriptorNorms = np.sqrt(np.sum(siftDescriptors ** 2, axis=-1))
-  mask = descriptorNorms > 1
-  if np.any(mask):
-    block = siftDescriptors[mask]
-    block /= descriptorNorms[mask][:, None]
-    block = np.clip(block, block.min(), 0.2)
-    block /= np.sqrt(np.sum(block ** 2, axis=-1, keepdims=True))
-    siftDescriptors[mask] = block
+  normalizedDescriptors = np.sqrt(np.sum(siftDescriptors ** 2, axis=-1))
+  if np.sum(normalizedDescriptors > 1) > 0:
+    siftDescriptorsNorm = siftDescriptors[normalizedDescriptors > 1, :]
+    siftDescriptorsNorm /= normalizedDescriptors[normalizedDescriptors > 1].reshape(-1, 1)
+    siftDescriptorsNorm = np.clip(siftDescriptorsNorm, siftDescriptorsNorm.min(), 0.2)
+    siftDescriptorsNorm /= np.sqrt(np.sum(siftDescriptorsNorm ** 2, axis=-1, keepdims=True))
+    siftDescriptors[normalizedDescriptors > 1, :] = siftDescriptorsNorm
   return siftDescriptors
 
 # Calc sift descriptors at circles
@@ -125,7 +124,7 @@ def findSift(img, keypointsXYR, enlargeFactor=1.5):
   numKeypoints = keypointsXYR.shape[0]
 
   # Gradients and angle tensor
-  magnitude, theta = _calcMagTheta(img, sigmaEdge=SIGMA_EDGE)
+  _, _, magnitude, theta = _calcGradients(img, sigmaEdge=SIGMA_EDGE)
   angleVol = _calcAngleVolume(theta, magnitude, angles, ALPHA, imgHeight, imgWidth)
 
   # Accumulate descriptors

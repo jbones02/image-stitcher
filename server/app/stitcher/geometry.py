@@ -20,6 +20,14 @@ def _asArrayOrRaise(descriptorMatches):
     raise ValueError("Not enough matches")
   return arr
 
+def _filterValidMatches(descriptorMatches, keypoints1, keypoints2):
+  maxIndex1 = keypoints1.shape[0] - 1
+  maxIndex2 = keypoints2.shape[0] - 1
+  index1Valid = descriptorMatches[:, 0] <= maxIndex1
+  index2Valid = descriptorMatches[:, 1] <= maxIndex2
+  validIndices = index1Valid & index2Valid
+  return descriptorMatches[validIndices]
+
 def _sampleFourIndices(numMatches):
   return np.random.choice(numMatches, size=4, replace=False)
 
@@ -53,6 +61,7 @@ def _refitIfNeeded(bestInliers, keypoints1, keypoints2, bestHomographyMatrix):
 def runRANSAC(descriptorMatches, keypoints1, keypoints2, iters=2000, inlierThresh=0.1):
   # Convert to arr and validate
   descriptorMatches = _asArrayOrRaise(descriptorMatches)
+  descriptorMatches = _filterValidMatches(descriptorMatches, keypoints1, keypoints2)
 
   bestInliers = np.array([], dtype=int)
   bestHomographyMatrix = None
@@ -73,5 +82,4 @@ def runRANSAC(descriptorMatches, keypoints1, keypoints2, iters=2000, inlierThres
       bestHomographyMatrix = curHomographyMatrix
 
   bestHomographyMatrix = _refitIfNeeded(bestInliers, keypoints1, keypoints2, bestHomographyMatrix)
-
   return bestHomographyMatrix
