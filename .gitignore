@@ -1,0 +1,15 @@
+# node / vite
+client/node_modules
+client/dist
+
+# python
+server/.venv
+**/__pycache__/
+*.pyc
+
+# misc
+.DS_Store
+.env
+start-dev.ps1
+
+temp.py
